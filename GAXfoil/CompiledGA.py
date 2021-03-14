@@ -7,13 +7,10 @@ import matplotlib.pyplot as plt
 import shutil
 
 # %% Inputs
-# NOTATION OF DV = [rle xup xlo zup zlo zxxup zxxlo dste zte betate alphate]
-# Some testing cases for initialisation comment/uncomment
-#lowerbound = [0.005,0.1,0.1,0.02,0.02,0.3,0.3,1e-4,-0.2,5,0]
-#upperbound = [0.1,0.4,0.4,0.1,0.1,0.6,0.6,1e-2,0.2,15,10]
-lowerbound = [1.1019* (0.05)**2,0.1,0.1,0.05,0.05,(0.4),(0.4),0.68e-3,0,5,0]
-upperbound = [1.1019* (0.20)**2,0.4,0.4,0.1,0.1,(0.5),(0.5),4.68e-3,0,20,5]
-lenChromo = 11              #The length of our chromosome
+# NOTATION OF DV = [rleup,xup,yup,zxxup,rlelo,xlo,ylo,zxxlo,betate,alphate,zte,dzte ]
+lowerbound = [0.0063,0.3170,0.0497,-0.5135,0.0063,0.2835,-0.0603,0.2535,0.0655,-0.2405,-0.0050,0.0020]
+upperbound = [0.0151,0.5250,0.0683,-0.2393,0.0151,0.3418,-0.0478,0.8405,0.2618,-0.0026,0.0200,0.0150]
+lenChromo = 12              #The length of our chromosome
 RankLenght = 4              #How many top performer chromosomes are selected from each generation
 splitpos1 = 4               #The split point of the 2 out of 4 selected chromosomes to be cross-overed
 splitpos2 = 6               #The split point of the other 2 out of 4 selected chromosomes to be cross-overed
@@ -34,75 +31,84 @@ def convert(row,lowerbound,upperbound):
     return abspop
 
 def parsec(abspop,filename):
-    # our design variables
-    rle = abspop[0]
+    # %% Input variables
+    rleup = abspop[0]
     xup = abspop[1]
-    xlo = abspop[2] 
-    zup = abspop[3]
-    zlo = abspop[4]
-    zxxup = -abspop[5]
-    zxxlo = -abspop[6]
-    dzte = abspop[7]
-    zte = abspop[8]
-    betate = abspop[9] * np.pi / 180
-    alphate = abspop[10] * np.pi / 180
+    yup = abspop[2]
+    zxxup = abspop[3]
+    rlelo = abspop[4]
+    xlo = abspop[5]
+    ylo = abspop[6]
+    zxxlo = abspop[7]
+    betate =  abspop[8]
+    alphate = abspop[9]
+    zte = abspop[10]
+    dzte = abspop[11]
     
-    # Upper surface
-    # find the coefficients for the UPPER SURFACE
-    # https://www.researchgate.net/publication/268574488_A_Comparison_of_Airfoil_Shape_Parameterization_Techniques_for_Early_Design_Optimization
-    xte =1
-    a = np.array([[1, 0, 0, 0, 0, 0],
-                  [xte**0.5,xte**1.5,xte**2.5,xte**3.5,xte**4.5,xte**5.5],
-                  [xup**0.5,xup**1.5,xup**2.5,xup**3.5,xup**4.5,xup**5.5],
-                  [0.5*xte**-0.5,1.5*xte**0.5,2.5*xte**1.5,3.5*xte**2.5,4.5*xte**3.5,5.5*xte**4.5],
-                  [0.5*xup**-0.5,1.5*xup**0.5,2.5*xup**1.5,3.5*xup**2.5,4.5*xup**3.5,5.5*xup**4.5],
-                  [-0.25*xup**-1.5,0.75*xup**-0.5,(15/4)*xup**0.5,(35/4)*xup**1.5,(53/4)*xup**2.5,(99/4)*xup**3.5]
-                  ])
-    
-    b = np.array([np.sqrt(2*rle),
+    # %% Upper surface
+    bup = np.array([np.sqrt(2*rleup),
                   zte + 0.5*dzte,
-                  zup,
-                  np.tan(alphate-betate),
+                  yup,
+                  np.tan(alphate - betate/2),
                   0,
                   zxxup])
     
-    # solve to find the coefficients
-    coeffs = np.linalg.solve(a, b)
+    Aup = np.array([[1, 0, 0, 0, 0, 0],
+                    [1, 1, 1, 1, 1, 1],
+                    [xup**0.5, xup**1.5, xup**2.5, xup**3.5, xup**4.5, xup**5.5],
+                    [0.5,1.5,2.5,3.5,4.5,5.5],
+                    [0.5*xup**-0.5, 1.5*xup**0.5, 2.5*xup**1.5, 3.5*xup**2.5, 4.5*xup**3.5, 5.5*xup**4.5],
+                    [-0.25*xup**-1.5, 0.75*xup**-0.5, (15/4)*xup**0.5, (35/4)*xup**1.5, (53/4)*xup**2.5, (99/4)*xup**3.5]])
+    
+    coeffsup = np.linalg.solve(Aup,bup)
+    
     x = np.linspace(0.00,1,400)
+    # initialise for speed
     yupper = np.zeros(len(x))
+    # Find the values of the bottom surface
     for count in range(6):
-        yupper = yupper + ( coeffs[count] * x**(count+1-0.5))
+        yupper = yupper+ ( coeffsup[count] * x**(count+1-0.5))
+    
+    # Plot the bottom surface as well
+    plt.plot(x,yupper,'k')
+    
     # Write the upper surface file
     fid=open(filename+".dat","w")
     for count in range(len(x)):
         fid.write(str(x[len(x)-count-1]) + '  ' + str(yupper[len(x)-count-1]) +'\n')
-    # Find the coefficients for the lower surface
-    a = np.array([[1, 0, 0, 0, 0, 0],
-              [xte**0.5,xte**1.5,xte**2.5,xte**3.5,xte**4.5,xte**5.5],
-              [xlo**0.5,xlo**1.5,xlo**2.5,xlo**3.5,xlo**4.5,xlo**5.5],
-              [0.5*xte**-0.5,1.5*xte**0.5,2.5*xte**1.5,3.5*xte**2.5,4.5*xte**3.5,5.5*xte**4.5],
-              [0.5*xlo**-0.5,1.5*xlo**0.5,2.5*xlo**1.5,3.5*xlo**2.5,4.5*xlo**3.5,5.5*xlo**4.5],
-              [-0.25*xlo**-1.5,0.75*xlo**-0.5,(15/4)*xlo**0.5,(35/4)*xlo**1.5,(53/4)*xlo**2.5,(99/4)*xlo**3.5]
-              ])
     
-    b = np.array([np.sqrt(2*rle),
-                  zte + 0.5*dzte,
-                  zlo,
-                  np.tan(alphate-betate),
+    # %% Lower surface
+    blo = np.array([-np.sqrt(2*rlelo),
+                  zte - 0.5*dzte,
+                  ylo,
+                  np.tan(alphate + betate/2),
                   0,
                   zxxlo])
     
-    # solve to find the coefficients
-    coeffs = np.linalg.solve(a, b)
+    Alo = np.array([[1, 0, 0, 0, 0, 0],
+                    [1, 1, 1, 1, 1, 1],
+                    [xlo**0.5, xlo**1.5, xlo**2.5, xlo**3.5, xlo**4.5, xlo**5.5],
+                    [0.5,1.5,2.5,3.5,4.5,5.5],
+                    [0.5*xlo**-0.5, 1.5*xlo**0.5, 2.5*xlo**1.5, 3.5*xlo**2.5, 4.5*xlo**3.5, 5.5*xlo**4.5],
+                    [-0.25*xlo**-1.5, 0.75*xlo**-0.5, (15/4)*xlo**0.5, (35/4)*xlo**1.5, (53/4)*xlo**2.5, (99/4)*xlo**3.5]])
+    
+    coeffslo = np.linalg.solve(Alo,blo)
+    
+    x = np.linspace(0.00,1,400)
     # initialise for speed
     ybottom = np.zeros(len(x))
     # Find the values of the bottom surface
     for count in range(6):
-        ybottom = ybottom + ( coeffs[count] * x**(count+1-0.5))
+        ybottom = ybottom + ( coeffslo[count] * x**(count+1-0.5))
     
+    # Plot the bottom surface as well
+    plt.plot(x,ybottom,'k')
+    plt.xlim([0,1])
+    plt.ylim([-0.25,0.5])
+    plt.show()
     #Write the bottom surface file
     for count in range(len(x)):
-        fid.write(str(x[count]) + '  ' + str(-ybottom[count]) +'\n')
+        fid.write(str(x[count]) + '  ' + str(ybottom[count]) +'\n')
     fid.close()
     
 def xfoilRun(airfoilName,polarname):
@@ -225,6 +231,10 @@ for count in range(0,len(selectedChromo)):
 gennum+=1
 countChromo=-1
 population = np.array(selectedChromo.copy())
+
+# used for evaluation
+scores = []
+popdict = {}
 for row in population:
     # Convert it to absolute values
     abspop = convert(row,lowerbound,upperbound)
@@ -277,6 +287,10 @@ while 1:
     gennum+=1
     countChromo=-1
     population = np.array(selectedChromo.copy())
+    
+    # used for evaluation
+    scores = []
+    popdict = {}
     for row in population:
         # Convert it to absolute values
         abspop = convert(row,lowerbound,upperbound)
@@ -299,10 +313,15 @@ while 1:
 # %% Export results
 ## Convert to dataframe
 df = pd.DataFrame(data=[bestPerf,bestPerfLD])
-df.head()
+df = df.transpose()
+df.columns=['Design Variables','LD']
 df.to_csv('Finals.csv')
 
 # %% Organise the output in a new folder
+if os.path.exists("Results"):
+    shutil.rmtree("Results", ignore_errors=True)
+    
+
 # Create a new folder
 os.mkdir("Results")
 sourcepath = os.getcwd()
@@ -319,6 +338,8 @@ for file in sourcefiles:
 
 # Visualise score propagation through generations
 plt.plot(range(Iterlimit),bestPerfLD)
+plt.xlim([0,1])
+plt.ylim([-0.25,0.5])
 plt.show()
 
 # Get the final shape and plot it   
@@ -335,6 +356,8 @@ for line in lines:
     yval.append(float(line[1]))
 
 plt.plot(xval,yval,'xk')
+plt.xlim([0,1])
+plt.ylim([-0.25,0.5])
 plt.show()
 
 
